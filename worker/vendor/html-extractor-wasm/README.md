@@ -1,7 +1,8 @@
 # html-extractor-wasm
 
 This directory contains generated WebAssembly files from `html-extractor`.
-The `workerd.js` entry initializes the module for Cloudflare Workers.
+The browser loads the module through Vite.
+The Worker does not load or run this module.
 
 Source commit: `25ed7a4`
 
@@ -19,4 +20,4 @@ wasm-pack build crates/html-extractor-wasm --release --target bundler
 ```
 
 Copy the generated background JavaScript, type declarations, and WASM file.
-Keep `workerd.js` as the Cloudflare-specific entry.
+Keep the source commit and binary hash current.

@@ -16,14 +16,6 @@ type ErrorPayload = {
   }
 }
 
-type SuccessPayload = {
-  markdown: string
-  metadata: {
-    sourceUrl: string
-    provider: string
-  }
-}
-
 const API_URL = 'https://worker.example/api/extract'
 
 function extractionRequest(url: string): Request {
@@ -71,10 +63,15 @@ describe('public URL validation', () => {
     )
 
     const response = await extract('https://93.184.216.34/article')
-    const payload = await response.json<SuccessPayload>()
+    const html = await response.text()
 
     expect(response.status).toBe(200)
-    expect(payload.markdown).toContain('Public page')
+    expect(html).toContain('Public page')
+    expect(response.headers.get('content-type')).toBe('text/plain; charset=utf-8')
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff')
+    expect(response.headers.get('x-web2md-source-url')).toBe(
+      'https://93.184.216.34/article',
+    )
     expect(fetchSpy).toHaveBeenCalledWith('https://93.184.216.34/article', {
       headers: {
         accept: 'text/html,application/xhtml+xml;q=0.9',
@@ -100,10 +97,13 @@ describe('redirect handling', () => {
       )
 
     const response = await extract('https://public.example/start')
-    const payload = await response.json<SuccessPayload>()
+    const html = await response.text()
 
     expect(response.status).toBe(200)
-    expect(payload.metadata.sourceUrl).toBe('https://public.example/final')
+    expect(html).toContain('Redirected page')
+    expect(response.headers.get('x-web2md-source-url')).toBe(
+      'https://public.example/final',
+    )
     expect(fetchSpy).toHaveBeenCalledTimes(2)
   })
 
@@ -219,29 +219,28 @@ describe('HTML response handling', () => {
     expect(payload.error.code).toBe('unsupported')
   })
 
-  it('extracts Markdown from valid HTML', async () => {
+  it('returns valid HTML for browser extraction', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
       htmlResponse('<article><h1>Test title</h1><p>Test paragraph.</p></article>'),
     )
 
     const response = await extract('https://public.example/article')
-    const payload = await response.json<SuccessPayload>()
+    const html = await response.text()
 
     expect(response.status).toBe(200)
-    expect(payload.markdown).toContain('Test title')
-    expect(payload.markdown).toContain('Test paragraph.')
-    expect(payload.metadata.provider).toBe('html-extractor-wasm')
+    expect(html).toContain('<h1>Test title</h1>')
+    expect(html).toContain('<p>Test paragraph.</p>')
   })
 
-  it('rejects HTML without readable content', async () => {
+  it('returns empty HTML for browser validation', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
       htmlResponse('<html><body></body></html>'),
     )
 
     const response = await extract('https://public.example/empty')
-    const payload = await response.json<ErrorPayload>()
+    const html = await response.text()
 
-    expect(response.status).toBe(422)
-    expect(payload.error.code).toBe('unsupported')
+    expect(response.status).toBe(200)
+    expect(html).toBe('<html><body></body></html>')
   })
 })

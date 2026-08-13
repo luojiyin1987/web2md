@@ -7,11 +7,13 @@ Convert public webpages into clean Markdown.
 web2md is a React SPA with a Cloudflare Worker API.
 The browser calls `POST /api/extract` with a public webpage URL.
 The Worker fetches a bounded HTML response and validates each redirect.
-It then runs the vendored `html-extractor` Rust core through WebAssembly.
+The Worker returns the HTML as inert plain text.
+The browser runs the vendored `html-extractor` Rust core through WebAssembly.
 
 The Worker limits HTML input to 2 MiB.
 It rejects private network URLs and non-HTML responses.
 The deployment does not require an external extraction service or API key.
+WebAssembly extraction uses the visitor's device CPU.
 
 ## Development
 
@@ -27,25 +29,21 @@ Local development uses the production runtime model.
 
 ## Testing
 
-Run the Worker test suite:
+Run the Worker and browser extraction tests:
 
 ```bash
 pnpm test
 ```
 
-The tests run inside workerd.
-They load the production WASM module and mock outbound requests.
+The Worker tests run inside workerd and mock outbound requests.
+The client tests load the production WASM module through Vite.
 
-## CPU verification
+## CPU use
 
-WASM extraction runs synchronously.
-Workers Free currently allows 10 ms of CPU time per request.
-Local tests do not enforce this production limit.
-Remote checks exceeded 10 ms for every successful extraction.
-The current server-side WASM design requires Workers Paid.
-
-Before release, test small, medium, 1 MiB, and near-2 MiB HTML pages.
-Check Worker logs for error 1102 after each test.
+The Worker does not run the WASM module.
+The browser runs HTML parsing and Markdown extraction.
+The Worker only validates the URL and transfers the bounded HTML response.
+This design removes extraction work from the Workers CPU limit.
 
 See the [Cloudflare Workers limits](https://developers.cloudflare.com/workers/platform/limits/).
 
@@ -65,10 +63,10 @@ Copy these generated files into `web2md/worker/vendor/html-extractor-wasm`:
 
 - `html_extractor_wasm_bg.js`
 - `html_extractor_wasm_bg.wasm`
-- `html_extractor_wasm.d.ts` as `workerd.d.ts`
+- the generated type declarations
 
-Keep the existing `workerd.js` entry.
-It initializes the WASM module with Cloudflare Workers module semantics.
+The client entry is `src/lib/wasm-extractor.ts`.
+Vite emits the WASM file as a static browser asset.
 
 ## Type generation
 
@@ -100,20 +98,19 @@ content-type: application/json
 {"url":"https://example.com/article"}
 ```
 
-Successful responses return Markdown and extraction metadata:
+Successful responses return the fetched HTML as plain text:
 
-```json
-{
-  "markdown": "# Example",
-  "metadata": {
-    "title": "Example",
-    "sourceUrl": "https://example.com/article",
-    "wordCount": 320,
-    "pageType": "article",
-    "provider": "html-extractor-wasm"
-  }
-}
+```http
+HTTP/1.1 200 OK
+content-type: text/plain; charset=utf-8
+x-content-type-options: nosniff
+x-web2md-source-url: https://example.com/article
+
+<!doctype html><html>...</html>
 ```
+
+The browser does not render this HTML.
+It passes the text to the local WASM module.
 
 Errors use a stable shape:
 

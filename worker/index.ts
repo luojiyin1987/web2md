@@ -1,7 +1,3 @@
-import {
-  extract,
-  type ExtractResult as WasmExtractResult,
-} from './vendor/html-extractor-wasm/workerd.js'
 import ipaddr from 'ipaddr.js'
 
 type JsonRecord = Record<string, unknown>
@@ -102,11 +98,6 @@ function normalizePublicUrl(value: unknown): string {
   }
 
   return url.toString()
-}
-
-function countWords(markdown: string): number | undefined {
-  const text = markdown.trim()
-  return text ? text.split(/\s+/u).length : undefined
 }
 
 async function readBoundedText(
@@ -251,25 +242,15 @@ async function fetchHtml(initialUrl: string): Promise<{ html: string; finalUrl: 
   throw new ExtractionFailure('fetch_failed', 'The webpage could not be fetched.', 502)
 }
 
-function extractMarkdown(html: string, url: string): WasmExtractResult {
-  try {
-    return extract(html, {
-      url,
-      includeLinks: true,
-      includeTables: true,
-      includeImages: false,
-      includeMetadata: true,
-      maxInputSize: MAX_HTML_BYTES,
-    })
-  } catch (error) {
-    console.error(
-      JSON.stringify({
-        message: 'WASM extraction failed',
-        error: error instanceof Error ? error.message : String(error),
-      }),
-    )
-    throw new ExtractionFailure('server_error', 'The webpage could not be extracted.', 500)
-  }
+function fetchedHtmlResponse(html: string, finalUrl: string): Response {
+  return new Response(html, {
+    headers: {
+      'cache-control': 'no-store',
+      'content-type': 'text/plain; charset=utf-8',
+      'x-content-type-options': 'nosniff',
+      'x-web2md-source-url': finalUrl,
+    },
+  })
 }
 
 async function handleExtract(request: Request): Promise<Response> {
@@ -285,26 +266,7 @@ async function handleExtract(request: Request): Promise<Response> {
     const body: unknown = JSON.parse(requestText)
     const requestedUrl = normalizePublicUrl(isRecord(body) ? body.url : undefined)
     const { html, finalUrl } = await fetchHtml(requestedUrl)
-    const result = extractMarkdown(html, finalUrl)
-
-    if (!result.markdown.trim()) {
-      throw new ExtractionFailure(
-        'unsupported',
-        result.errorReason ?? 'No readable Markdown content was found.',
-        422,
-      )
-    }
-
-    return json({
-      markdown: result.markdown,
-      metadata: {
-        title: result.metadata?.title,
-        sourceUrl: finalUrl,
-        wordCount: countWords(result.markdown),
-        pageType: result.pageType,
-        provider: 'html-extractor-wasm',
-      },
-    })
+    return fetchedHtmlResponse(html, finalUrl)
   } catch (error) {
     if (error instanceof BodyTooLargeError) {
       return errorResponse('unsupported', 'The request body is too large.', 413)
