@@ -4,6 +4,14 @@
   "compatibility_date": "2026-08-13",
   "compatibility_flags": ["global_fetch_strictly_public"],
   "main": "./worker/index.ts",
+
+  "routes": [
+    {
+      "pattern": "web2md.itea.fit",
+      "custom_domain": true
+    }
+  ],
+
   "assets": {
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*"]
