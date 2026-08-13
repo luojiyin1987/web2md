@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "repository": "git@github.com:luojiyin1987/html-extractor.git",
+    "commit": "c231cb44fa95253c4cff8030602939ad1b540127"
+  },
+  "toolchain": {
+    "wasmPack": "wasm-pack 0.15.0"
+  },
+  "wasmSha256": "524bb50c5de6cf9f928548d05328c33724acae250b1d0867ab8dda47949cc2da",
+  "files": {
+    "html_extractor_wasm_bg.js": "b28c74e6329a26f70094303cd15d74da4282da281b1c24e074f797d393c65eed",
+    "html_extractor_wasm_bg.wasm": "524bb50c5de6cf9f928548d05328c33724acae250b1d0867ab8dda47949cc2da",
+    "html_extractor_wasm.d.ts": "46e44689b2d9a77a0dedad3e39ae4eb7be323d9be2b082dbfc2bd9a83b7fee5f",
+    "html_extractor_wasm_workerd.js": "67150e9c701b66f6f916bb1413699c9318d81adb0025f167c186408d34c45e79"
+  }
+}

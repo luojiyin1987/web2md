@@ -1,4 +1,4 @@
-import type { ExtractResult } from '../../worker/vendor/html-extractor-wasm/html_extractor_wasm_bg.js'
+import type { ExtractResult } from '../../worker/vendor/html-extractor-wasm/html_extractor_wasm.js'
 
 export interface WasmExtractionRequest {
   id: number

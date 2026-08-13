@@ -7,9 +7,11 @@
     "dev": "vite",
     "build": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.worker.json && vite build",
     "preview": "vite preview",
-    "test": "tsc --noEmit -p test/tsconfig.json && tsc --noEmit -p test/tsconfig.client.json && vitest run --config vitest.config.ts && vitest run --config vitest.client.config.ts",
+    "test": "node --test scripts/sync-wasm.test.mjs && tsc --noEmit -p test/tsconfig.json && tsc --noEmit -p test/tsconfig.client.json && vitest run --config vitest.config.ts && vitest run --config vitest.client.config.ts",
     "deploy": "pnpm build && wrangler deploy",
-    "cf-typegen": "wrangler types --include-env=false"
+    "cf-typegen": "wrangler types --include-env=false",
+    "wasm:build": "node scripts/sync-wasm.mjs build",
+    "wasm:check": "node scripts/sync-wasm.mjs check"
   },
   "dependencies": {
     "ipaddr.js": "^2.5.0",

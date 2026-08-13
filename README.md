@@ -54,18 +54,34 @@ See the [Cloudflare Workers limits](https://developers.cloudflare.com/workers/pl
 The compiled package lives in `worker/vendor/html-extractor-wasm`.
 The repository tracks the WASM file to make builds reproducible.
 
-To update it, build the adjacent `html-extractor` repository:
+Build and synchronize it from the adjacent `html-extractor` repository:
 
 ```bash
-cd ../html-extractor
-wasm-pack build crates/html-extractor-wasm --release --target bundler
+pnpm wasm:build
 ```
 
-Copy these generated files into `web2md/worker/vendor/html-extractor-wasm`:
+Set another source directory when required:
+
+```bash
+pnpm wasm:build -- --source /path/to/html-extractor
+```
+
+The script runs `wasm-pack` and the upstream `prepare-workerd.mjs` script.
+It copies these generated files without renaming them:
 
 - `html_extractor_wasm_bg.js`
 - `html_extractor_wasm_bg.wasm`
-- the generated type declarations
+- `html_extractor_wasm.d.ts`
+- `html_extractor_wasm_workerd.js`
+
+The script records the source commit and file hashes in `manifest.json`.
+Check all generated files against that source version:
+
+```bash
+pnpm wasm:check
+```
+
+Use `pnpm wasm:build -- --help` for all options.
 
 The client entry is `src/lib/wasm-extractor.ts`.
 It starts `src/lib/wasm-extractor.worker.ts`, which owns the WASM runtime.
