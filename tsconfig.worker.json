@@ -6,9 +6,10 @@
     "strict": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "types": ["./worker-configuration.d.ts"],
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true
   },
-  "include": ["worker"]
+  "include": ["worker", "worker-configuration.d.ts"]
 }
