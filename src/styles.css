@@ -157,7 +157,9 @@ button:disabled {
   font-size: 0.86rem;
 }
 
-.emptyState {
+.emptyState,
+.statusState,
+.errorState {
   display: grid;
   min-height: 275px;
   place-content: center;
@@ -166,14 +168,58 @@ button:disabled {
   color: #53627c;
 }
 
-.emptyState p {
+.emptyState p,
+.statusState p,
+.errorState p {
   margin-bottom: 6px;
   font-weight: 700;
   color: #172033;
 }
 
-.emptyState span {
+.emptyState span,
+.statusState span,
+.errorState span {
   font-size: 0.92rem;
+}
+
+.errorState {
+  color: #8a3540;
+  background: #fff9f9;
+}
+
+.errorState p {
+  color: #702934;
+}
+
+.resultBody {
+  min-height: 275px;
+}
+
+.metadata {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding: 14px 20px;
+  border-bottom: 1px solid #e5e9f1;
+  color: #69758a;
+  font-size: 0.84rem;
+}
+
+.metadata strong {
+  width: 100%;
+  color: #172033;
+}
+
+.markdownOutput {
+  max-height: 520px;
+  margin: 0;
+  overflow: auto;
+  padding: 22px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 0.9rem/1.65 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  color: #253047;
+  background: #fbfcfe;
 }
 
 @media (max-width: 640px) {
