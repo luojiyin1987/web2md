@@ -2,6 +2,7 @@ import {
   extract,
   type ExtractResult as WasmExtractResult,
 } from './vendor/html-extractor-wasm/workerd.js'
+import ipaddr from 'ipaddr.js'
 
 type JsonRecord = Record<string, unknown>
 
@@ -15,6 +16,7 @@ type ExtractionErrorCode =
 const MAX_API_REQUEST_BYTES = 8 * 1024
 const MAX_HTML_BYTES = 2 * 1024 * 1024
 const MAX_REDIRECTS = 5
+const USER_AGENT = 'web2md/0.1 (+https://github.com/luojiyin1987/web2md)'
 
 class ExtractionFailure extends Error {
   readonly code: ExtractionErrorCode
@@ -49,43 +51,18 @@ function errorResponse(code: ExtractionErrorCode, message: string, status: numbe
   return json({ error: { code, message } }, { status })
 }
 
+function isPublicIpAddress(hostname: string): boolean {
+  return ipaddr.process(hostname).range() === 'unicast'
+}
+
 function isPrivateOrLocalHostname(hostname: string): boolean {
   const host = hostname.toLowerCase().replace(/^\[/, '').replace(/\]$/, '').replace(/\.$/, '')
 
-  if (host === 'localhost' || host.endsWith('.localhost') || host === '::1') {
+  if (host === 'localhost' || host.endsWith('.localhost')) {
     return true
   }
 
-  if (
-    host.startsWith('fc') ||
-    host.startsWith('fd') ||
-    host.startsWith('fe8') ||
-    host.startsWith('fe9') ||
-    host.startsWith('fea') ||
-    host.startsWith('feb')
-  ) {
-    return host.includes(':')
-  }
-
-  const parts = host.split('.')
-  if (parts.length !== 4 || parts.some((part) => !/^\d{1,3}$/.test(part))) {
-    return false
-  }
-
-  const octets = parts.map(Number)
-  if (octets.some((octet) => octet < 0 || octet > 255)) {
-    return false
-  }
-
-  const [a, b] = octets
-  return (
-    a === 0 ||
-    a === 10 ||
-    a === 127 ||
-    (a === 169 && b === 254) ||
-    (a === 172 && b >= 16 && b <= 31) ||
-    (a === 192 && b === 168)
-  )
+  return ipaddr.isValid(host) && !isPublicIpAddress(host)
 }
 
 function normalizePublicUrl(value: unknown): string {
@@ -175,7 +152,19 @@ async function readBoundedText(
 }
 
 function isRedirect(status: number): boolean {
-  return status >= 300 && status < 400
+  return status === 301 || status === 302 || status === 303 || status === 307 || status === 308
+}
+
+function resolveRedirectUrl(location: string, currentUrl: string): string {
+  try {
+    return new URL(location, currentUrl).toString()
+  } catch {
+    throw new ExtractionFailure(
+      'fetch_failed',
+      'The webpage returned an invalid redirect URL.',
+      502,
+    )
+  }
 }
 
 function validateHtmlResponse(response: Response): void {
@@ -212,6 +201,7 @@ async function fetchHtml(initialUrl: string): Promise<{ html: string; finalUrl: 
       response = await fetch(currentUrl, {
         headers: {
           accept: 'text/html,application/xhtml+xml;q=0.9',
+          'user-agent': USER_AGENT,
         },
         redirect: 'manual',
       })
@@ -235,7 +225,7 @@ async function fetchHtml(initialUrl: string): Promise<{ html: string; finalUrl: 
         )
       }
 
-      currentUrl = normalizePublicUrl(new URL(location, currentUrl).toString())
+      currentUrl = normalizePublicUrl(resolveRedirectUrl(location, currentUrl))
       continue
     }
 

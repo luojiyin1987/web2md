@@ -25,6 +25,30 @@ pnpm dev
 The Cloudflare Vite plugin runs the API in workerd.
 Local development uses the production runtime model.
 
+## Testing
+
+Run the Worker test suite:
+
+```bash
+pnpm test
+```
+
+The tests run inside workerd.
+They load the production WASM module and mock outbound requests.
+
+## CPU verification
+
+WASM extraction runs synchronously.
+Workers Free currently allows 10 ms of CPU time per request.
+Local tests do not enforce this production limit.
+Remote checks exceeded 10 ms for every successful extraction.
+The current server-side WASM design requires Workers Paid.
+
+Before release, test small, medium, 1 MiB, and near-2 MiB HTML pages.
+Check Worker logs for error 1102 after each test.
+
+See the [Cloudflare Workers limits](https://developers.cloudflare.com/workers/platform/limits/).
+
 ## WebAssembly package
 
 The compiled package lives in `worker/vendor/html-extractor-wasm`.
