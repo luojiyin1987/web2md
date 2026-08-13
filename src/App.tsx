@@ -177,6 +177,53 @@ export default function App() {
           </div>
         )}
       </section>
+
+      <section className="seoContent" aria-labelledby="about-web2md">
+        <div className="seoIntro">
+          <p className="eyebrow">About the tool</p>
+          <h2 id="about-web2md">Convert webpages to Markdown without the page clutter</h2>
+          <p>
+            Web2MD is a free online webpage-to-Markdown converter for public URLs. It extracts the
+            readable content from an article or webpage and turns it into clean Markdown that is
+            easier to save, edit, search, or pass to other tools.
+          </p>
+        </div>
+
+        <div className="seoGrid">
+          <article>
+            <h3>Useful for notes and archives</h3>
+            <p>
+              Save articles as portable <code>.md</code> files for Markdown editors, personal notes,
+              documentation, or long-term reference without keeping the original page layout.
+            </p>
+          </article>
+
+          <article>
+            <h3>Cleaner input for AI tools</h3>
+            <p>
+              Convert a webpage into structured text before using it with LLMs, research workflows,
+              retrieval pipelines, or other tools that work better with Markdown than raw HTML.
+            </p>
+          </article>
+
+          <article>
+            <h3>Focus on the readable content</h3>
+            <p>
+              Strip away navigation, page chrome, and other surrounding elements so the resulting
+              Markdown is easier to read, copy, process, and reuse.
+            </p>
+          </article>
+        </div>
+
+        <div className="howItWorks" aria-labelledby="how-it-works">
+          <h2 id="how-it-works">How to convert a webpage to Markdown</h2>
+          <ol>
+            <li>Paste the URL of a public webpage or article.</li>
+            <li>Select Convert and let Web2MD extract the readable content.</li>
+            <li>Copy the Markdown or download the result as a <code>.md</code> file.</li>
+          </ol>
+        </div>
+      </section>
     </main>
   )
 }
