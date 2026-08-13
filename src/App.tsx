@@ -8,6 +8,26 @@ import {
 
 type ConversionState = 'idle' | 'loading' | 'success' | 'error'
 
+function markdownFilename(result: ExtractionResult): string {
+  let fallback = 'webpage'
+
+  try {
+    fallback = new URL(result.metadata.sourceUrl).hostname || fallback
+  } catch {
+    // Keep the generic fallback when sourceUrl is not parseable.
+  }
+
+  const raw = result.metadata.title?.trim() || fallback
+  const safe = raw
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 100)
+
+  return `${safe || 'webpage'}.md`
+}
+
 export default function App() {
   const [url, setUrl] = useState('')
   const [state, setState] = useState<ConversionState>('idle')
@@ -15,15 +35,14 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState('')
   const [copied, setCopied] = useState(false)
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+  async function runExtraction(targetUrl: string) {
     setState('loading')
     setResult(null)
     setErrorMessage('')
     setCopied(false)
 
     try {
-      const nextResult = await extractWebpage(url)
+      const nextResult = await extractWebpage(targetUrl)
       setResult(nextResult)
       setState('success')
     } catch (error) {
@@ -36,6 +55,11 @@ export default function App() {
     }
   }
 
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    await runExtraction(url)
+  }
+
   async function copyMarkdown() {
     if (!result) return
 
@@ -45,6 +69,20 @@ export default function App() {
     } catch {
       setCopied(false)
     }
+  }
+
+  function downloadMarkdown() {
+    if (!result) return
+
+    const blob = new Blob([result.markdown], { type: 'text/markdown;charset=utf-8' })
+    const objectUrl = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = objectUrl
+    link.download = markdownFilename(result)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(objectUrl)
   }
 
   return (
@@ -82,9 +120,19 @@ export default function App() {
       <section className="result" aria-label="Conversion result">
         <div className="resultHeader">
           <h2>Markdown</h2>
-          <button type="button" onClick={copyMarkdown} disabled={!result}>
-            {copied ? 'Copied' : 'Copy'}
-          </button>
+          <div className="resultActions">
+            <button
+              className="secondaryButton"
+              type="button"
+              onClick={downloadMarkdown}
+              disabled={!result}
+            >
+              Download .md
+            </button>
+            <button type="button" onClick={copyMarkdown} disabled={!result}>
+              {copied ? 'Copied' : 'Copy'}
+            </button>
+          </div>
         </div>
 
         {state === 'idle' && (
@@ -97,7 +145,7 @@ export default function App() {
         {state === 'loading' && (
           <div className="statusState" role="status" aria-live="polite">
             <p>Extracting webpage…</p>
-            <span>Fetching the page and preparing clean Markdown.</span>
+            <span>This can take several seconds on larger or JavaScript-heavy pages.</span>
           </div>
         )}
 
@@ -105,6 +153,14 @@ export default function App() {
           <div className="errorState" role="alert">
             <p>Couldn&apos;t extract this webpage.</p>
             <span>{errorMessage}</span>
+            <button
+              className="secondaryButton retryButton"
+              type="button"
+              onClick={() => void runExtraction(url)}
+              disabled={state === 'loading'}
+            >
+              Retry
+            </button>
           </div>
         )}
 
