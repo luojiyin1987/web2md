@@ -1,45 +1,93 @@
 # web2md
 
-Convert webpages into clean Markdown.
+Convert public webpages into clean Markdown.
 
 ## Architecture
 
-web2md is a React SPA with a Cloudflare Worker API. The browser calls the provider-neutral `POST /api/extract` endpoint, and the Worker calls Firecrawl's scrape API with `onlyMainContent` enabled to return clean Markdown.
+web2md is a React SPA with a Cloudflare Worker API.
+The browser calls `POST /api/extract` with a public webpage URL.
+The Worker fetches a bounded HTML response and validates each redirect.
+The Worker returns the HTML as inert plain text.
+The browser runs the vendored `html-extractor` Rust core through WebAssembly.
 
-The Firecrawl API key stays in a Cloudflare Worker secret and is never exposed to the browser.
+The Worker limits HTML input to 2 MiB.
+It rejects private network URLs and non-HTML responses.
+The deployment does not require an external extraction service or API key.
+WebAssembly extraction uses the visitor's device CPU.
 
 ## Development
 
-Install dependencies and create a local Worker secret file:
+Install dependencies and start the Cloudflare Vite development server:
 
 ```bash
 pnpm install
-cp .dev.vars.example .dev.vars
-```
-
-Set `FIRECRAWL_API_KEY` in `.dev.vars`, then run:
-
-```bash
 pnpm dev
 ```
 
-The Cloudflare Vite plugin runs the API inside `workerd`, so local development uses the same runtime model as production.
+The Cloudflare Vite plugin runs the API in workerd.
+Local development uses the production runtime model.
+
+## Testing
+
+Run the Worker and browser extraction tests:
+
+```bash
+pnpm test
+```
+
+The Worker tests run inside workerd and mock outbound requests.
+The client tests load the production WASM module through Vite.
+
+## CPU use
+
+The Worker does not run the WASM module.
+The browser runs HTML parsing and Markdown extraction.
+The Worker only validates the URL and transfers the bounded HTML response.
+This design removes extraction work from the Workers CPU limit.
+
+See the [Cloudflare Workers limits](https://developers.cloudflare.com/workers/platform/limits/).
+
+## WebAssembly package
+
+The compiled package lives in `worker/vendor/html-extractor-wasm`.
+The repository tracks the WASM file to make builds reproducible.
+
+To update it, build the adjacent `html-extractor` repository:
+
+```bash
+cd ../html-extractor
+wasm-pack build crates/html-extractor-wasm --release --target bundler
+```
+
+Copy these generated files into `web2md/worker/vendor/html-extractor-wasm`:
+
+- `html_extractor_wasm_bg.js`
+- `html_extractor_wasm_bg.wasm`
+- the generated type declarations
+
+The client entry is `src/lib/wasm-extractor.ts`.
+Vite emits the WASM file as a static browser asset.
+
+## Type generation
+
+Generate Cloudflare runtime types after each Wrangler configuration change:
+
+```bash
+pnpm cf-typegen
+```
+
+The command excludes environment bindings because this Worker has none.
 
 ## Deployment
 
-Store the Firecrawl API key as a Worker secret:
-
-```bash
-pnpm exec wrangler secret put FIRECRAWL_API_KEY
-```
-
-Then build and deploy the SPA and Worker together:
+Build and deploy the SPA and Worker together:
 
 ```bash
 pnpm deploy
 ```
 
-Cloudflare serves the React static assets and routes `/api/*` through the Worker from the same deployment.
+Cloudflare serves the React assets.
+It routes `/api/*` through the Worker.
 
 ## Extraction API contract
 
@@ -50,19 +98,19 @@ content-type: application/json
 {"url":"https://example.com/article"}
 ```
 
-Successful responses return Markdown plus optional metadata:
+Successful responses return the fetched HTML as plain text:
 
-```json
-{
-  "markdown": "# Example",
-  "metadata": {
-    "title": "Example",
-    "sourceUrl": "https://example.com/article",
-    "wordCount": 320,
-    "provider": "firecrawl"
-  }
-}
+```http
+HTTP/1.1 200 OK
+content-type: text/plain; charset=utf-8
+x-content-type-options: nosniff
+x-web2md-source-url: https://example.com/article
+
+<!doctype html><html>...</html>
 ```
+
+The browser does not render this HTML.
+It passes the text to the local WASM module.
 
 Errors use a stable shape:
 
@@ -74,5 +122,3 @@ Errors use a stable shape:
   }
 }
 ```
-
-The browser remains decoupled from Firecrawl so a Worker-compatible direct extractor or another backend can be added later without changing the UI contract.

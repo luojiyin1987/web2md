@@ -1,3 +1,5 @@
+import { extractHtml } from './wasm-extractor'
+
 export type ExtractionErrorCode =
   | 'invalid_url'
   | 'fetch_failed'
@@ -59,8 +61,9 @@ function optionalString(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined
 }
 
-function optionalNumber(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+function countWords(markdown: string): number | undefined {
+  const text = markdown.trim()
+  return text ? text.split(/\s+/u).length : undefined
 }
 
 export function normalizeWebpageUrl(value: string): string {
@@ -110,6 +113,8 @@ export async function extractWebpage(
   }, timeoutMs)
 
   let response: Response
+  let payload: unknown
+  let html: string | undefined
   try {
     response = await fetch('/api/extract', {
       method: 'POST',
@@ -119,6 +124,12 @@ export async function extractWebpage(
       body: JSON.stringify({ url }),
       signal: controller.signal,
     })
+
+    if (response.ok) {
+      html = await response.text()
+    } else {
+      payload = await readJson(response)
+    }
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
       if (timedOut) {
@@ -140,8 +151,6 @@ export async function extractWebpage(
     options.signal?.removeEventListener('abort', abortFromCaller)
   }
 
-  const payload = await readJson(response)
-
   if (!response.ok) {
     const errorPayload = isRecord(payload) && isRecord(payload.error) ? payload.error : null
     const code = toErrorCode(errorPayload?.code)
@@ -150,7 +159,8 @@ export async function extractWebpage(
     throw new ExtractionError(code, message, response.status)
   }
 
-  if (!isRecord(payload) || typeof payload.markdown !== 'string') {
+  const sourceUrl = optionalString(response.headers.get('x-web2md-source-url'))
+  if (html === undefined || !sourceUrl) {
     throw new ExtractionError(
       'server_error',
       'The extraction service returned an invalid response.',
@@ -158,16 +168,32 @@ export async function extractWebpage(
     )
   }
 
-  const metadata = isRecord(payload.metadata) ? payload.metadata : {}
+  let result
+  try {
+    result = await extractHtml(html, sourceUrl)
+  } catch {
+    throw new ExtractionError(
+      'server_error',
+      'The webpage could not be extracted on this device.',
+    )
+  }
+
+  if (!result.markdown.trim()) {
+    throw new ExtractionError(
+      'unsupported',
+      result.errorReason ?? 'No readable Markdown content was found.',
+      422,
+    )
+  }
 
   return {
-    markdown: payload.markdown,
+    markdown: result.markdown,
     metadata: {
-      sourceUrl: optionalString(metadata.sourceUrl) ?? url,
-      title: optionalString(metadata.title),
-      wordCount: optionalNumber(metadata.wordCount),
-      pageType: optionalString(metadata.pageType),
-      provider: optionalString(metadata.provider),
+      sourceUrl,
+      title: result.metadata?.title,
+      wordCount: countWords(result.markdown),
+      pageType: result.pageType,
+      provider: 'html-extractor-wasm-browser',
     },
   }
 }

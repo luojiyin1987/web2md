@@ -7,20 +7,24 @@
     "dev": "vite",
     "build": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.worker.json && vite build",
     "preview": "vite preview",
+    "test": "tsc --noEmit -p test/tsconfig.json && tsc --noEmit -p test/tsconfig.client.json && vitest run --config vitest.config.ts && vitest run --config vitest.client.config.ts",
     "deploy": "pnpm build && wrangler deploy",
-    "cf-typegen": "wrangler types"
+    "cf-typegen": "wrangler types --include-env=false"
   },
   "dependencies": {
+    "ipaddr.js": "^2.5.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.48.0",
+    "@cloudflare/vitest-pool-workers": "^0.21.1",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^6.0.0",
     "typescript": "^7.0.0",
     "vite": "^8.2.0",
+    "vitest": "^4.1.10",
     "wrangler": "^4.115.0"
   }
 }

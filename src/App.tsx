@@ -157,7 +157,6 @@ export default function App() {
               className="secondaryButton retryButton"
               type="button"
               onClick={() => void runExtraction(url)}
-              disabled={state === 'loading'}
             >
               Retry
             </button>

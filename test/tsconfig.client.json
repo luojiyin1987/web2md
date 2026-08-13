@@ -1,0 +1,7 @@
+{
+  "extends": "../tsconfig.app.json",
+  "compilerOptions": {
+    "types": ["vite/client"]
+  },
+  "include": ["./client-extractor.test.ts", "../src", "../worker/vendor/**/*.d.ts"]
+}
