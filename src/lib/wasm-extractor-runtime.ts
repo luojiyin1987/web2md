@@ -1,8 +1,15 @@
 import initWasm from '../../worker/vendor/html-extractor-wasm/html_extractor_wasm_bg.wasm?init'
-import * as wasmBindings from '../../worker/vendor/html-extractor-wasm/html_extractor_wasm_bg.js'
-import type { ExtractResult } from '../../worker/vendor/html-extractor-wasm/html_extractor_wasm_bg.js'
+import * as generatedBindings from '../../worker/vendor/html-extractor-wasm/html_extractor_wasm_bg.js'
+import type * as WasmApi from '../../worker/vendor/html-extractor-wasm/html_extractor_wasm.js'
+import type { ExtractResult } from '../../worker/vendor/html-extractor-wasm/html_extractor_wasm.js'
 
 const MAX_HTML_BYTES = 2 * 1024 * 1024
+
+type WasmBindings = typeof WasmApi & {
+  __wbg_set_wasm(exports: WebAssembly.Exports): void
+}
+
+const wasmBindings = generatedBindings as WasmBindings
 
 let initialization: Promise<void> | undefined
 

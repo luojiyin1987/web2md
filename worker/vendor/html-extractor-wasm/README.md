@@ -4,20 +4,19 @@ This directory contains generated WebAssembly files from `html-extractor`.
 The browser loads the module through Vite.
 The Worker does not load or run this module.
 
-Source commit: `25ed7a4`
-
-Binary SHA-256:
-
-```text
-524bb50c5de6cf9f928548d05328c33724acae250b1d0867ab8dda47949cc2da
-```
-
-Regenerate the source package in the adjacent repository:
+Do not copy or rename files manually.
+Run the synchronization command from the `web2md` root:
 
 ```bash
-cd ../html-extractor
-wasm-pack build crates/html-extractor-wasm --release --target bundler
+pnpm wasm:build
 ```
 
-Copy the generated background JavaScript, type declarations, and WASM file.
-Keep the source commit and binary hash current.
+The command uses the adjacent `html-extractor` repository by default.
+Use `--source` to select a different source directory.
+
+```bash
+pnpm wasm:build -- --source /path/to/html-extractor
+```
+
+`manifest.json` records the source Git commit and all artifact hashes.
+Run `pnpm wasm:check` to rebuild and compare the files.

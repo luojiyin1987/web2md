@@ -5,7 +5,7 @@ import type {
   WasmExtractionResponse,
 } from '../src/lib/wasm-extractor-protocol'
 import { extractHtmlInWorker } from '../src/lib/wasm-extractor-runtime'
-import type { ExtractResult } from '../worker/vendor/html-extractor-wasm/html_extractor_wasm_bg.js'
+import type { ExtractResult } from '../worker/vendor/html-extractor-wasm/html_extractor_wasm.js'
 
 const workerResult: ExtractResult = {
   markdown: '# Worker result',
