@@ -9,6 +9,8 @@ type WorkerHandler = {
 }
 
 const FIRECRAWL_SCRAPE_URL = 'https://api.firecrawl.dev/v2/scrape'
+const FIRECRAWL_TIMEOUT_MS = 30_000
+const UPSTREAM_FETCH_TIMEOUT_MS = 35_000
 
 function isRecord(value: unknown): value is JsonRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -110,17 +112,28 @@ async function safeJson(response: Response): Promise<unknown> {
   }
 }
 
+function upstreamErrorCode(status: number): string {
+  if (status === 402) return 'usage_limit'
+  if (status === 408 || status === 504) return 'timeout'
+  if (status === 400 || status === 422) return 'unsupported'
+  return 'server_error'
+}
+
 function upstreamErrorMessage(status: number, payload: unknown): string {
   if (status === 402) {
-    return 'The extraction service has reached its usage limit. Try again later.'
+    return 'The Firecrawl usage limit has been reached. Try again after credits reset.'
   }
 
   if (status === 429) {
-    return 'The extraction service is busy. Try again shortly.'
+    return 'Firecrawl is rate-limiting requests. Try again shortly.'
   }
 
   if (status === 401 || status === 403) {
-    return 'The extraction service is not configured correctly.'
+    return 'The Firecrawl API key is missing, invalid, or not authorized.'
+  }
+
+  if (status === 408 || status === 504) {
+    return 'Firecrawl timed out while processing this webpage. Try again.'
   }
 
   if (isRecord(payload)) {
@@ -129,7 +142,7 @@ function upstreamErrorMessage(status: number, payload: unknown): string {
   }
 
   if (status >= 500) {
-    return 'The upstream extraction service is temporarily unavailable.'
+    return 'Firecrawl is temporarily unavailable. Try again later.'
   }
 
   return 'The webpage could not be extracted.'
@@ -146,7 +159,7 @@ async function handleExtract(request: Request, env: Env): Promise<Response> {
   if (!env.FIRECRAWL_API_KEY) {
     return errorResponse(
       'server_error',
-      'The extraction service is not configured.',
+      'The extraction service is not configured. Add FIRECRAWL_API_KEY to .dev.vars or Worker secrets.',
       503,
     )
   }
@@ -169,6 +182,15 @@ async function handleExtract(request: Request, env: Env): Promise<Response> {
     )
   }
 
+  const requestId = crypto.randomUUID()
+  const targetHost = new URL(url).hostname
+  const startedAt = Date.now()
+
+  console.info('extract:start', { requestId, host: targetHost })
+
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), UPSTREAM_FETCH_TIMEOUT_MS)
+
   let upstream: Response
   try {
     upstream = await fetch(FIRECRAWL_SCRAPE_URL, {
@@ -185,37 +207,62 @@ async function handleExtract(request: Request, env: Env): Promise<Response> {
         blockAds: true,
         removeBase64Images: true,
         maxAge: 3_600_000,
-        timeout: 30_000,
+        timeout: FIRECRAWL_TIMEOUT_MS,
       }),
+      signal: controller.signal,
     })
-  } catch {
+  } catch (error) {
+    const durationMs = Date.now() - startedAt
+
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.warn('extract:timeout', { requestId, host: targetHost, durationMs })
+      return errorResponse(
+        'timeout',
+        'Firecrawl did not respond in time. Try again.',
+        504,
+      )
+    }
+
+    console.error('extract:fetch-failed', { requestId, host: targetHost, durationMs })
     return errorResponse(
       'fetch_failed',
-      'Could not reach the upstream extraction service. Try again.',
+      'Could not reach Firecrawl. Check your connection and try again.',
       502,
     )
+  } finally {
+    clearTimeout(timeoutId)
   }
 
   const payload = await safeJson(upstream)
+  const durationMs = Date.now() - startedAt
+
+  console.info('extract:upstream', {
+    requestId,
+    host: targetHost,
+    status: upstream.status,
+    durationMs,
+  })
 
   if (!upstream.ok) {
     return errorResponse(
-      upstream.status === 400 ? 'unsupported' : 'server_error',
+      upstreamErrorCode(upstream.status),
       upstreamErrorMessage(upstream.status, payload),
-      upstream.status === 429 ? 503 : 502,
+      upstream.status === 429 || upstream.status === 402 ? 503 : 502,
     )
   }
 
   if (!isRecord(payload) || payload.success !== true || !isRecord(payload.data)) {
+    console.warn('extract:invalid-response', { requestId, host: targetHost, durationMs })
     return errorResponse(
       'server_error',
-      'The extraction service returned an invalid response.',
+      upstreamErrorMessage(upstream.status, payload),
       502,
     )
   }
 
   const markdown = payload.data.markdown
   if (typeof markdown !== 'string' || markdown.trim().length === 0) {
+    console.warn('extract:empty', { requestId, host: targetHost, durationMs })
     return errorResponse(
       'unsupported',
       'No readable Markdown content was found on this webpage.',
@@ -224,6 +271,13 @@ async function handleExtract(request: Request, env: Env): Promise<Response> {
   }
 
   const metadata = isRecord(payload.data.metadata) ? payload.data.metadata : {}
+
+  console.info('extract:success', {
+    requestId,
+    host: targetHost,
+    durationMs,
+    markdownChars: markdown.length,
+  })
 
   return json({
     markdown,
