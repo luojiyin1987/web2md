@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://web2md.itea.fit/sitemap.xml
