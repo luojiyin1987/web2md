@@ -8,12 +8,13 @@ web2md is a React SPA with a Cloudflare Worker API.
 The browser calls `POST /api/extract` with a public webpage URL.
 The Worker fetches a bounded HTML response and validates each redirect.
 The Worker returns the HTML as inert plain text.
-The browser runs the vendored `html-extractor` Rust core through WebAssembly.
+The browser sends that HTML to a dedicated Web Worker.
+The Web Worker runs the vendored `html-extractor` Rust core through WebAssembly.
 
 The Worker limits HTML input to 2 MiB.
 It rejects private network URLs and non-HTML responses.
 The deployment does not require an external extraction service or API key.
-WebAssembly extraction uses the visitor's device CPU.
+WebAssembly extraction uses the visitor's device CPU without blocking the UI thread.
 
 ## Development
 
@@ -36,14 +37,15 @@ pnpm test
 ```
 
 The Worker tests run inside workerd and mock outbound requests.
-The client tests load the production WASM module through Vite.
+The client tests cover the Web Worker bridge and load the production WASM runtime through Vite.
 
 ## CPU use
 
-The Worker does not run the WASM module.
-The browser runs HTML parsing and Markdown extraction.
-The Worker only validates the URL and transfers the bounded HTML response.
-This design removes extraction work from the Workers CPU limit.
+The Cloudflare Worker does not run the WASM module.
+A browser Web Worker runs HTML parsing and Markdown extraction.
+The UI thread only coordinates the request and renders the result.
+The Cloudflare Worker only validates the URL and transfers the bounded HTML response.
+This design removes extraction work from the Workers CPU limit and keeps extraction work off the UI thread.
 
 See the [Cloudflare Workers limits](https://developers.cloudflare.com/workers/platform/limits/).
 
@@ -66,7 +68,8 @@ Copy these generated files into `web2md/worker/vendor/html-extractor-wasm`:
 - the generated type declarations
 
 The client entry is `src/lib/wasm-extractor.ts`.
-Vite emits the WASM file as a static browser asset.
+It starts `src/lib/wasm-extractor.worker.ts`, which owns the WASM runtime.
+Vite emits the worker and WASM file as browser assets.
 
 ## Type generation
 
@@ -110,7 +113,7 @@ x-web2md-source-url: https://example.com/article
 ```
 
 The browser does not render this HTML.
-It passes the text to the local WASM module.
+It passes the text to the local WASM module in a Web Worker.
 
 Errors use a stable shape:
 
@@ -121,4 +124,3 @@ Errors use a stable shape:
     "message": "The webpage could not be extracted."
   }
 }
-```
